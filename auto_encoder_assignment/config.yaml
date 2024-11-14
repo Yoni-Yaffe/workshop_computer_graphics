@@ -1,0 +1,27 @@
+slurm_params:
+  job-name: "transcription_model"
+  output: "slurmlog.out" # redirect stdout
+  error: "slurmlog.err" # redirect stderr
+  partition: studentkillable # (see resources section)
+  time: "600" # max time (minutes)
+  signal: "USR1@120" # how to end job when time�s up
+  nodes: "1" # number of machines
+  ntasks: "1" # number of processes
+  mem: "8000" # CPU memory (MB)
+  cpus-per-task: "8" # CPU cores per process
+  gpus: "1" # GPUs in tota
+  constraint: "titan_xp"
+
+train_params:
+  batch_size: 32
+  learning_rate: 0.0001
+  num_epochs: 20
+  loss_type: "l1"  # "mse/ssim/l1"
+  model_type: "lrelu" # "base/lrelu"
+
+
+# logdir: "/tmp"
+
+command: "/home/ML_courses/03683533_2024/jonathan_ido_or/auto_encoder_assignment/run_main"
+run_type: "train"
+run_name: "train_lrelu_l1"

@@ -1,0 +1,5 @@
+#!/bin/bash
+echo Starting
+/home/ML_courses/03683533_2024/guy_test/miniconda3/envs/jonathan_ido_or/bin/python -V
+/home/ML_courses/03683533_2024/guy_test/miniconda3/envs/jonathan_ido_or/bin/python train.py "$@"
+echo Finished
