@@ -1,5 +1,5 @@
 slurm_params:
-  job-name: "transcription_model"
+  job-name: "AutoEncoder" # job name
   output: "slurmlog.out" # redirect stdout
   error: "slurmlog.err" # redirect stderr
   partition: studentkillable # (see resources section)
@@ -7,7 +7,7 @@ slurm_params:
   signal: "USR1@120" # how to end job when time�s up
   nodes: "1" # number of machines
   ntasks: "1" # number of processes
-  mem: "8000" # CPU memory (MB)
+  mem: "16000" # CPU memory (MB)
   cpus-per-task: "8" # CPU cores per process
   gpus: "1" # GPUs in tota
   constraint: "titan_xp"
@@ -16,12 +16,14 @@ train_params:
   batch_size: 32
   learning_rate: 0.0001
   num_epochs: 20
-  loss_type: "l1"  # "mse/ssim/l1"
-  model_type: "lrelu" # "base/lrelu"
+  loss_type: "ssim"  # "mse/ssim/l1"
+  model_type: "residual2" # "base/lrelu/batchnorm/batchnorm_dropout/residual/residual2"
 
 
 # logdir: "/tmp"
 
 command: "/home/ML_courses/03683533_2024/jonathan_ido_or/auto_encoder_assignment/run_main"
 run_type: "train"
-run_name: "train_lrelu_l1"
+# run_name: "residual2_ssim_20_epochs_batch32_with_horizontal_flip"
+run_name: "debug"
+# run_name: "batchnorm_with_dropout_20_epochs_l1"
