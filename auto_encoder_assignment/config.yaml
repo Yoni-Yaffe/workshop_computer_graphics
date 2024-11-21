@@ -13,9 +13,10 @@ slurm_params:
   constraint: "titan_xp"
 
 train_params:
+  horizontal_flip: true
   batch_size: 32
   learning_rate: 0.0001
-  num_epochs: 20
+  num_epochs: 40
   loss_type: "ssim"  # "mse/ssim/l1"
   model_type: "residual2" # "base/lrelu/batchnorm/batchnorm_dropout/residual/residual2"
 
@@ -24,6 +25,6 @@ train_params:
 
 command: "/home/ML_courses/03683533_2024/jonathan_ido_or/auto_encoder_assignment/run_main"
 run_type: "train"
-# run_name: "residual2_ssim_20_epochs_batch32_with_horizontal_flip"
-run_name: "debug"
+run_name: "residual2_ssim_40_epochs_batch32_with_horizontal_flip_save_best_model"
+# run_name: "debug"
 # run_name: "batchnorm_with_dropout_20_epochs_l1"
