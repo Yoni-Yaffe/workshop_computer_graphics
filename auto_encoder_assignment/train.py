@@ -6,13 +6,24 @@ from torchvision.datasets import ImageFolder
 import torch.nn as nn
 import torch.optim as optim
 from PIL import Image
-from auto_encoder import Autoencoder, Autoencoder2  # Your autoencoder model here
+from auto_encoder import Autoencoder, Autoencoder2, Autoencoder3, Autoencoder4, Autoencoder5, Autoencoder6  # Your autoencoder model here
 import os
 from tqdm import tqdm
 import sys
 import argparse
 import yaml
 import pandas as pd
+import piqa
+from torchvision.transforms import functional as F
+
+from piqa import SSIM
+
+torch.manual_seed(42)
+
+
+class SSIMLoss(SSIM):
+    def forward(self, x, y):
+        return 1. - super().forward(x, y)
 
 # Image transformation
 transform = transforms.Compose([
@@ -22,20 +33,35 @@ transform = transforms.Compose([
 
 # Custom Dataset class
 class ImageDataset(Dataset):
-    def __init__(self, root_dir, transform=None):
+    def __init__(self, root_dir, transform=None, horizontal_flip=False):
         self.root_dir = root_dir
         self.transform = transform
+        self.horizontal_flip = horizontal_flip
         self.image_paths = sorted([os.path.join(root_dir, fname) for fname in os.listdir(root_dir) if fname.endswith('.png')])
-
+        self.image_dict = {}
+        self.load_all_images()
+        
     def __len__(self):
         return len(self.image_paths)
 
+    
     def __getitem__(self, idx):
         img_path = self.image_paths[idx]
-        image = Image.open(img_path).convert("RGB")
-        if self.transform:
-            image = self.transform(image)
+        image = self.image_dict[img_path]
+        # first 1000 images are saved for validation
+        if idx > 1000 and self.horizontal_flip and torch.rand(1).item() < 0.5:
+            image = F.hflip(image)
+        
         return image, 0  # Return dummy label, as we don't have classes
+    
+   
+    def load_all_images(self):
+        for img_path in tqdm(self.image_paths):
+            image = Image.open(img_path).convert("RGB")
+            if self.transform:
+                image = self.transform(image)
+            self.image_dict[img_path] = image
+           
     
 
 
@@ -48,13 +74,15 @@ def main(config: dict, logdir: str):
     
     
     dataset_root = '../../dataset'
-    full_dataset = ImageDataset(root_dir=dataset_root, transform=transform)
+    horizontal_flip = config.get('horizontal_flip', False)
+    full_dataset = ImageDataset(root_dir=dataset_root, transform=transform, horizontal_flip=horizontal_flip)
 
     print(f"Batch size: {batch_size}, Learning rate: {learning_rate}, Number of epochs: {num_epochs}")
 
     # Device configuration (GPU if available)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+    print("device ", device)
+    print("device name", torch.cuda.get_device_name(device=device))
 
 
     # Split indices for training and validation
@@ -64,8 +92,6 @@ def main(config: dict, logdir: str):
     # Create training and validation subsets
     train_dataset = Subset(full_dataset, train_indices)
     val_dataset = Subset(full_dataset, val_indices)
-
-
     # Create DataLoaders for training and validation
     train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False)
@@ -77,15 +103,24 @@ def main(config: dict, logdir: str):
         model = Autoencoder().to(device)
     elif model_type == 'lrelu':
         model = Autoencoder2().to(device)
+    elif model_type == 'batchnorm':
+        model = Autoencoder3().to(device)
+    elif model_type == 'batchnorm_dropout':
+        model = Autoencoder4().to(device)
+    elif model_type == 'residual':
+        model = Autoencoder5().to(device)
+    elif model_type == "residual2":
+        model = Autoencoder6().to(device)
     else:
         raise ValueError(f"Invalid model type: {model_type}")
+    num_gpus = torch.cuda.device_count()
+    print(f"Using {num_gpus} GPUs")
     print(model)
     loss_type = config['loss_type']
     if loss_type == 'mse':
         criterion = nn.MSELoss()
     elif loss_type == 'ssim':
-        exit(1)
-        criterion = SSIM(1.0)
+        criterion = SSIMLoss().cuda()
     elif loss_type == 'l1':
         criterion = nn.L1Loss()
     else:
@@ -97,6 +132,8 @@ def main(config: dict, logdir: str):
     val_losses = []
     print("Cuda available: ", torch.cuda.is_available())
     print("Began Training")
+    best_val_loss = float('inf')
+    best_val_epoch = 0
     # Training loop
     for epoch in range(num_epochs):
         model.train()
@@ -106,8 +143,6 @@ def main(config: dict, logdir: str):
             # if iteration > 10:
             #     break
             inputs, _ = data
-            # print(inputs.shape)
-            # print(inputs.min(), inputs.max())
             inputs = inputs.to(device)
             
 
@@ -134,6 +169,13 @@ def main(config: dict, logdir: str):
                 inputs = inputs.to(device)
                 outputs = model(inputs)
                 val_loss += criterion(outputs, inputs).item()
+        # Save the model if it has the best validation loss so far
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_val_epoch = epoch
+            best_model_save_path = os.path.join(logdir, 'best_autoencoder_model.pth')
+            torch.save(model.state_dict(), best_model_save_path)
+            print(f"Best model saved to {best_model_save_path}")
         
         val_loss /= len(val_loader)
         val_losses.append(val_loss)
@@ -141,11 +183,12 @@ def main(config: dict, logdir: str):
         # Print epoch losses
         print(f'Epoch [{epoch+1}/{num_epochs}], Training Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}')
 
-    model_save_path = os.path.join(logdir, 'autoencoder_model.pth')
-    torch.save(model.state_dict(), model_save_path)
-    print(f"Model saved to {model_save_path}")
-
-    # Plot and save the learning curve
+    # Load the best model
+    model.load_state_dict(torch.load(best_model_save_path))
+    model.to(device)
+    model.eval()
+    print(f"Best model loaded from {best_model_save_path}")
+    print(f"Best model at epoch {best_val_epoch + 1} with validation loss: {best_val_loss:.4f}")
     plt.figure(figsize=(10, 5))
     plt.plot(range(1, num_epochs + 1), train_losses, label='Training Loss')
     plt.plot(range(1, num_epochs + 1), val_losses, label='Validation Loss')
@@ -176,8 +219,6 @@ def main(config: dict, logdir: str):
     model.eval()
     with torch.no_grad():
         for i, data in enumerate(val_loader):
-            if i >= 50:  # Only process 50 images
-                break
             inputs, _ = data
             inputs = inputs.to(device)
             outputs = model(inputs)

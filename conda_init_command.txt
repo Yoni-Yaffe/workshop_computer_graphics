@@ -1,0 +1,1 @@
+/home/ML_courses/03683533_2024/guy_test/miniconda3/bin/conda init
