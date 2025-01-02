@@ -1,0 +1,120 @@
+slurm_params:
+  job-name: "transcription_model"
+  account: "gpu-research"
+  output: "slurmlog.out" # redirect stdout
+  error: "slurmlog.err" # redirect stderr
+  # partition: studentkillable # (see resources section)
+  partition: killable # (see resources section)
+  time: "1440" # max time (minutes)
+  # time: "30" # max time (minutes)
+  signal: "USR1@120" # how to end job when time�s up
+  nodes: "1" # number of machines
+  ntasks: "1" # number of processes
+  mem: "24000" # CPU memory (MB)
+  cpus-per-task: "32" # CPU cores per process
+  gpus: "2" # GPUs in tota
+  # constraint: "a6000"
+  # constraint: "a6000|geforce_rtx_3090"
+  constraint: "geforce_rtx_3090|a6000"
+  # nodelist: "n-305"
+  
+  # constraint: "titan_xp"
+
+train_params:
+  prev_inst_mapping: null
+  # prev_inst_mapping: [0, 40, 47, 24, 60]
+  # prev_inst_mapping: [0, 6, 10, 19, 24, 40, 41, 42, 43, 44, 45, 46, 47, 48, 52, 58, 60, 61, 64, 68, 70, 71, 73, 0, 24, 40, 60]
+  # transcriber_ckpt: "ckpts/model-70.pt"
+  transcriber_ckpt: "/vol/scratch/jonathany/ckpts/transcriber_0.5min_counting_EM5.pt"
+  # transcriber_ckpt: "/vol/scratch/jonathany/ckpts/transcriber_with_noise_full_counnting_EM2.pt"
+  
+  # transcriber_ckpt: "/home/dcor/jonathany/transcription_counting/ckpts/counting_1minute/transcriber_EM3.pt"
+  # transcriber_ckpt: "/vol/scratch/jonathany/ckpts/pop_and_musicnet_first_iter_new.pt"
+  
+  # transcriber_ckpt: "ckpts/trained_ckpts/transcriber_iteration_60001.pt"
+  # transcriber_ckpt: "ckpts/trained_ckpts/transcriber_musicnet_and_museopen_4_inst.pt"  # 
+  # transcriber_ckpt: "/vol/scratch/jonathany/ckpts/transcriber-220315-040403/model-19.pt"  # 
+  multi_ckpt: True # Flag if the ckpt was trained on pitch only or instrument-sensitive. The provided checkpoints were trained on pitch only.
+
+  checkpoint_interval: 6 # how often to save checkpoint
+  batch_size: 32
+
+  # iterations = 1000 # per epoch
+  iterations: 100_001
+  learning_rate: 0.0001
+  learning_rate_decay_steps: 10_000
+  clip_gradient_norm: 3
+  n_weight: 2
+  # epochs: 15
+  epochs: 1
+  # groups: ['ABBA', 'Abbey Road', 'Creedence', 'David Bowie', 'Led Zeppelin', 'Madonna', 'Misc', 'Pink Floyd', 'Queen Large', 'White Album']
+  # groups: ["maestro"] 
+  # groups: ["maestro_train"]
+  groups: ["maestro_train_rubberband"]
+  # groups: ["full_pop_merged"]
+  # groups: ["Guitar-set_only_audio"]
+  # groups: ["full_museopen", "full_musicnet_with_piano_random_shift"]
+  # groups: ["full_musicnet_with_piano_random_shift"]
+  # groups: ["full_pop_merged", "full_pop_merged_first", "full_musicnet_with_piano_random_shift"]
+  # groups: ["full_pop_merged", "full_musicnet_with_piano_random_shift"]
+  save_to_memory: false
+  num_workers: 24
+  pitch_shift: true
+  pitch_shift_limit: 5
+  psuedo_labels: false
+  use_pop_conversion_map: false
+  use_classic_conversion_map: false
+  use_constant_conversion_map: true
+  use_labels_in_dataset_dir: false
+  onset_no_frames_model: true
+
+  train_only_frame_stack: false
+  only_n_files: false
+  
+  debug_segments: false
+  modulated_transcriber: false
+  group_modulation: false  # relevant only when modulated_transcriber is set to true 
+  update_pts: false
+  output_loss_curve: true
+  make_evaluation: false
+  evaluation_list: ['1759#0.flac', '1819#0.flac', '2106#0.flac','2191#0.flac', '2298#0.flac', '2303#0.flac', '2382#0.flac','2416#0.flac', '2556.flac', '2628.flac']
+  # evaluation_list: ['No Surprises#0.flac', 'Karma Police#0.flac']
+
+  # tsv_dir: "./NoteEM_tsv_updated_labels"
+  tsv_dir: "NoteEM_tsv"
+  labels_dir_path: "/vol/scratch/jonathany/labels/maestro_train_0.5min_counting/"
+  # labels_dir_path: "/vol/scratch/jonathany/labels/maestro_train_full_counting_noise_frac10/"
+  # labels_dir_path: "/vol/scratch/jonathany/labels/maestro_train_noise_frac20/"
+  
+  # dataset_name: "full_pop_merged"
+  # dataset_name: "full_musicnet_with_piano_random_shift"
+  # dataset_name: "POP_AUDIO_SHIFT"
+  # dataset_name: "musicnet_and_pop"
+  # dataset_name: "Guitar-set_only_audio"
+  # dataset_name: "musicnet_and_pop_second_iter"
+  # dataset_name: "all_pop_songs"
+  # dataset_name: "maestro"
+  dataset_name: "maestro_train_rubberband"
+
+
+inference_params:
+  # inst_mapping: [6]
+  # inst_mapping: [0, 40, 47, 24, 60]
+  inst_mapping: [0, 40, 47, 24, 40]
+  # inst_mapping: [0, 6, 10, 19, 24, 40, 41, 42, 43, 44, 45, 46, 47, 48, 52, 58, 60, 61, 64, 68, 70, 71, 73, 0, 24, 40, 60]
+  audio_files_dir: "flac_dir/both"
+  # audio_files_dir: "evaluation/"
+  modulated_transcriber: true
+  # ckpt: "ckpts/trained_ckpts/transcriber_iteration_60001.pt"
+  ckpt: "ckpts/trained_ckpts/transcriber_modulated_full.pt"
+  # ckpt: "/vol/scratch/jonathany/ckpts/transcriber-220315-040403/model-19.pt"
+
+# logdir: "/tmp"
+
+command: "/home/dcor/jonathany/transcription_counting/run_main"
+# command: "/specific/a/home/cc/students/cs/jonathany/research/pop_alignment/run_generate_labels"
+# run_name: "Orchestal_and_Rouset_prev_model"
+# run_name: "inference_test"
+# run_name: "Rousette_goldberg_debug"
+run_type: "train"
+run_name: "maestro_train_with_pitch_shift_0.5min_counting_EM6"

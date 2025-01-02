@@ -1,0 +1,12 @@
+#!/bin/bash
+echo Starting
+nvidia-smi
+echo slurm id $SLURM_JOB_ID
+echo slurm job name $SLURM_JOB_NAME
+echo slurm job node list $SLURM_JOB_NODELIST
+echo slurm node id $SLURM_NODEID
+echo slurm num nodes $SLURM_JOB_NUM_NODES
+echo cpu per task $SLURM_CPUS_PER_TASK
+/home/ML_courses/03683533_2024/jonathan_ido_or/concept_decomposition/.venv/bin/python -V
+/home/ML_courses/03683533_2024/jonathan_ido_or/concept_decomposition/.venv/bin/python main.py "$@"
+echo Finished

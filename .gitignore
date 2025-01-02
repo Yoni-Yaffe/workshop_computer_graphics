@@ -4,3 +4,4 @@ test/*
 test2/*
 __pycache__/*
 Anaconda3-2020.11-Linux-x86_64.sh
+concept_decomposition/.venv/*
