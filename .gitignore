@@ -3,5 +3,7 @@ results/*
 test/*
 test2/*
 __pycache__/*
+concept_decomposition/__pycache__/*
 Anaconda3-2020.11-Linux-x86_64.sh
 concept_decomposition/.venv/*
+*pyc
