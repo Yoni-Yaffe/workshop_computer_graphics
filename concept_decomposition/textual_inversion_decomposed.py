@@ -822,8 +822,26 @@ def main():
                     raise ValueError(f"Unknown prediction type {noise_scheduler.config.prediction_type}")
 
                 loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
+                # # Calculate the regularization loss
+                # norm_list = []
+                # reg_loss = 0.0  # Initialize the regularization loss
+                # for placeholder_token_id_ in placeholder_token_ids:
+                #     cur_norm = torch.norm(
+                #         accelerator.unwrap_model(text_encoder).get_input_embeddings().weight[placeholder_token_id_].unsqueeze(0),
+                #         p=2
+                #     )
+                #     norm_list.append(cur_norm)
+                #     if cur_norm > 0.8:
+                #         reg_loss += 0.1 * 0.8 + torch.abs(cur_norm - 0.8)  # Stronger penalty for larger norms
+                #     else:
+                #         reg_loss += 0.1 * torch.abs(cur_norm)  # Smaller penalty for smaller norms
 
-                accelerator.backward(loss)
+                # # Normalize and combine with the primary loss
+                # reg_loss = reg_loss / len(placeholder_token_ids)  # Normalize the regularization loss
+                # beta = 0.005  # Weight for the regularization loss
+                # total_loss = loss + beta * reg_loss  # Combine losses
+                total_loss = loss
+                accelerator.backward(total_loss)
 
                 optimizer.step()
                 lr_scheduler.step()

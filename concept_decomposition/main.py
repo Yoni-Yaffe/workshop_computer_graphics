@@ -35,6 +35,7 @@ def run_textual_inversion(yaml_path, logdir):
     # we intentionally import here in order to set the env variables first
     from textual_inversion_decomposed import main as textual_inversion_main
     config = yaml_config["train_params"]
+    print("Config:", config)
     # Extract parameters from YAML
     gpu_id = os.environ.get("CUDA_VISIBLE_DEVICES", "0")
     train_data_dir = config.get("train_data_dir", "input_concepts")
