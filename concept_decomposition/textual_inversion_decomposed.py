@@ -370,8 +370,12 @@ def parse_args():
     parser.add_argument("--path_to_clip_selected", type=str, default=None)
     
     parser.add_argument("--norm_loss", action="store_true", help="Whether to use norm loss")
+    parser.add_argument("--cosine_loss", action="store_true", help="Whether to use cosine loss")
     parser.add_argument("--norm_loss_beta", type=float, default=0.005, help="Beta for norm loss")
+    parser.add_argument("--cosine_loss_beta", type=float, default=1.0, help="Beta for norm loss")
     args = parser.parse_args()
+    print("args")
+    print(args)
     env_local_rank = int(os.environ.get("LOCAL_RANK", -1))
     if env_local_rank != -1 and env_local_rank != args.local_rank:
         args.local_rank = env_local_rank
@@ -553,6 +557,10 @@ def main():
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         mixed_precision=args.mixed_precision,
     )
+    if torch.cuda.is_available():
+        logger.info("CUDA is available.")
+    else:
+        logger.info("CUDA is not available.")
 
     # Make one log on every process with the configuration for debugging.
     logging.basicConfig(
@@ -607,6 +615,18 @@ def main():
     print("initializer_token_ids", initializer_token_ids)
     placeholder_token_ids = tokenizer.convert_tokens_to_ids(args.placeholder_token.split(" "))
     print("placeholder_token_ids", placeholder_token_ids)
+    
+    # Assuming args.initializer_token is a string like "object style"
+    initializer_tokens = args.initializer_token.split(" ")
+    assert len(initializer_tokens) == 2, "Expected two initializer tokens (e.g., 'object style')"
+
+    # Token IDs for "object" and "style"
+    object_token_id = tokenizer.encode(initializer_tokens[0], add_special_tokens=False)[0]
+    style_token_id = tokenizer.encode(initializer_tokens[1], add_special_tokens=False)[0]
+
+    # Extract embeddings for the "object" and "style" tokens
+    object_embedding = text_encoder.get_input_embeddings().weight[object_token_id].detach().clone()
+    style_embedding = text_encoder.get_input_embeddings().weight[style_token_id].detach().clone()
 
     # Resize the token embeddings as we are adding new special tokens to the tokenizer
     text_encoder.resize_token_embeddings(len(tokenizer))
@@ -823,6 +843,25 @@ def main():
                     raise ValueError(f"Unknown prediction type {noise_scheduler.config.prediction_type}")
 
                 loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
+                
+                total_loss = loss
+                
+                if args.cosine_loss:
+                    # Inside the training loop:
+                    # Compute the cosine similarity between embeddings and targets
+                    learned_embedding_1 = accelerator.unwrap_model(text_encoder).get_input_embeddings().weight[placeholder_token_ids[0]]
+                    learned_embedding_2 = accelerator.unwrap_model(text_encoder).get_input_embeddings().weight[placeholder_token_ids[1]]
+
+                    # Cosine similarity loss for "object" and "style" embeddings
+                    cosine_loss_1 = 1 - F.cosine_similarity(learned_embedding_1.unsqueeze(0), object_embedding.unsqueeze(0))
+                    cosine_loss_2 = 1 - F.cosine_similarity(learned_embedding_2.unsqueeze(0), style_embedding.unsqueeze(0))
+
+                    # Regularization term for embeddings similarity
+                    cosine_reg_loss = (cosine_loss_1 + cosine_loss_2).mean()
+                    total_loss = total_loss + cosine_reg_loss * args.cosine_loss_beta
+
+
+
                 if args.norm_loss:
                     # Calculate the regularization loss
                     norm_list = []
@@ -842,9 +881,8 @@ def main():
                     reg_loss = reg_loss / len(placeholder_token_ids)  # Normalize the regularization loss
                     # beta = 0.005  # Weight for the regularization loss
                     beta = args.norm_loss_beta  # Weight for the regularization loss
-                    total_loss = loss + beta * reg_loss  # Combine losses
-                else:
-                    total_loss = loss
+                    total_loss = total_loss + beta * reg_loss  # Combine losses
+                
                 accelerator.backward(total_loss)
 
                 optimizer.step()

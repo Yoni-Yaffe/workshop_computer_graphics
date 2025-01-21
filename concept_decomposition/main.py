@@ -50,6 +50,7 @@ def run_textual_inversion(yaml_path, logdir):
     norm_loss = config.get("norm_loss", False)
     norm_loss_beta = config.get("norm_loss_beta", 0.005)
     seed = config.get("seed", 123)
+    initializer_token = config.get("initializer_token", "object object")
     print("config:", config)
     # Construct arguments as if passed from the command line
     output_dir = os.path.join(logdir, f"outputs/{parent_data_dir}/{node}/{test_name}_seed{seed}/")
@@ -63,6 +64,7 @@ def run_textual_inversion(yaml_path, logdir):
         "--max_train_steps", str(max_train_steps),
         "--validation_steps", str(validation_steps),
         "--norm_loss_beta", str(norm_loss_beta),
+        "--initializer_token", str(initializer_token),
     ]
     if norm_loss:
         sys.argv.append("--norm_loss")
