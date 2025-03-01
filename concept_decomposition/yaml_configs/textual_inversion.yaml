@@ -1,0 +1,51 @@
+slurm_params:
+  job-name: "concept_decomposition"
+  # account: "gpu-research"
+  output: "slurmlog.out" # redirect stdout
+  error: "slurmlog.err" # redirect stderr
+  # partition: killable # (see resources section)
+  partition: "studentkillable"
+  time: "360" # max time (minutes)
+  # time: "30" # max time (minutes)
+  signal: "USR1@120" # how to end job when time�s up
+  nodes: "1" # number of machines
+  ntasks: "1" # number of processes
+  mem: "16000" # CPU memory (MB)
+  cpus-per-task: "8" # CPU cores per process
+  gpus: "1" # GPUs in tota
+  # constraint: "a6000"
+  # constraint: "a6000|geforce_rtx_3090"
+  # constraint: "quadro_rtx_8000"
+  # constraint: "a6000|a5000|geforce_rtx_3090"
+  constraint: "titan_xp"
+  # exclude: "s-001"
+  # exclude: "n-301"
+
+train_params:
+  train_data_dir: "input_concepts"       # Directory containing the training data
+  # parent_data_dir: "cat_sculpture"
+  # parent_data_dir: "bull1"
+  # parent_data_dir: "pumpkin"
+  # parent_data_dir: "ship_watch"
+  # parent_data_dir: "mug_buildings"            # Subdirectory within train_data_dir
+  # parent_data_dir: "wooden_duck"    
+  # parent_data_dir: "canada_bear"
+  parent_data_dir: "face_pot"
+  initializer_token: "object"    
+  node: "v0"                            # Node to process (e.g., v0, v1)
+  test_name: "textual_inversion_test"   # Name for the test
+  max_train_steps: 2000                 # Maximum number of training steps
+  validation_steps: 100                 # Number of steps between validations
+  placeholder_token: "<*>"          # Placeholder tokens for textual inversion
+  validation_prompt: "<*>"  # Validation prompt
+  seed: 1003                      # Random seed for reproducibility            # Device type (cuda or cpu)
+  norm_loss: false
+  norm_loss_beta:  0.0025
+  cosine_loss: false
+  cosine_loss_beta: 0.0001
+
+  norm_loss_desired_norm: 0.8
+
+cache_dir: '/vol/scratch/jonathany2/cache'
+command: "/home/ML_courses/03683533_2024/jonathan_ido_or/concept_decomposition/run_main"
+run_name: "textual_inversion_face_pot_one_token_seed1003"
