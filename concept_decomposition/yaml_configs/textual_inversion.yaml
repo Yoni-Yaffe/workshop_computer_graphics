@@ -23,14 +23,14 @@ slurm_params:
 
 train_params:
   train_data_dir: "input_concepts"       # Directory containing the training data
-  # parent_data_dir: "cat_sculpture"
+  parent_data_dir: "cat_sculpture"
   # parent_data_dir: "bull1"
   # parent_data_dir: "pumpkin"
   # parent_data_dir: "ship_watch"
   # parent_data_dir: "mug_buildings"            # Subdirectory within train_data_dir
   # parent_data_dir: "wooden_duck"    
   # parent_data_dir: "canada_bear"
-  parent_data_dir: "face_pot"
+  # parent_data_dir: "face_pot"
   initializer_token: "object"    
   node: "v0"                            # Node to process (e.g., v0, v1)
   test_name: "textual_inversion_test"   # Name for the test
@@ -38,7 +38,7 @@ train_params:
   validation_steps: 100                 # Number of steps between validations
   placeholder_token: "<*>"          # Placeholder tokens for textual inversion
   validation_prompt: "<*>"  # Validation prompt
-  seed: 1003                      # Random seed for reproducibility            # Device type (cuda or cpu)
+  seed: 2003                      # Random seed for reproducibility            # Device type (cuda or cpu)
   norm_loss: false
   norm_loss_beta:  0.0025
   cosine_loss: false
@@ -48,4 +48,4 @@ train_params:
 
 cache_dir: '/vol/scratch/jonathany2/cache'
 command: "/home/ML_courses/03683533_2024/jonathan_ido_or/concept_decomposition/run_main"
-run_name: "textual_inversion_face_pot_one_token_seed1003"
+run_name: "textual_inversion_cat_one_token_seed2003"

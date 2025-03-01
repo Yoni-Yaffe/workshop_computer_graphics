@@ -1,10 +1,10 @@
 slurm_params:
   job-name: "concept_decomposition"
-  # account: "gpu-research"
+  account: "gpu-research"
   output: "slurmlog.out" # redirect stdout
   error: "slurmlog.err" # redirect stderr
-  # partition: killable # (see resources section)
-  partition: "studentkillable"
+  partition: killable # (see resources section)
+  # partition: "studentkillable"
   time: "360" # max time (minutes)
   # time: "30" # max time (minutes)
   signal: "USR1@120" # how to end job when time�s up
@@ -16,35 +16,28 @@ slurm_params:
   # constraint: "a6000"
   # constraint: "a6000|geforce_rtx_3090"
   # constraint: "quadro_rtx_8000"
-  # constraint: "a6000|a5000|geforce_rtx_3090"
-  constraint: "titan_xp"
+  constraint: "a6000|a5000|geforce_rtx_3090"
+  # constraint: "titan_xp"
   # exclude: "s-001"
-  # exclude: "n-301"
 
 train_params:
   train_data_dir: "input_concepts"       # Directory containing the training data
-  # parent_data_dir: "cat_sculpture"
-  # parent_data_dir: "pumpkin"
+  parent_data_dir: "cat_sculpture"
   # parent_data_dir: "ship_watch"
   # parent_data_dir: "mug_buildings"            # Subdirectory within train_data_dir
-  # parent_data_dir: "face_pot"            # Subdirectory within train_data_dir
   # parent_data_dir: "wooden_duck"    
-  parent_data_dir: "canada_bear"
-  initializer_token: "object object"    
+  # parent_data_dir: "canada_bear"
+  initializer_token: "object style"    
   node: "v0"                            # Node to process (e.g., v0, v1)
   test_name: "textual_inversion_test"   # Name for the test
   max_train_steps: 2000                 # Maximum number of training steps
   validation_steps: 100                 # Number of steps between validations
   placeholder_token: "<*> <&>"          # Placeholder tokens for textual inversion
   validation_prompt: "<*>,<&>,<*> <&>"  # Validation prompt
-  seed: 1006                      # Random seed for reproducibility            # Device type (cuda or cpu)
-  norm_loss: false
-  norm_loss_beta:  0.0025
-  cosine_loss: true
-  cosine_loss_beta: 0.0001
-
-  norm_loss_desired_norm: 1.0
+  seed: 1001                              # Random seed for reproducibility            # Device type (cuda or cpu)
+  norm_loss: true
+  cosine_loss: false
 
 cache_dir: '/vol/scratch/jonathany2/cache'
 command: "/home/ML_courses/03683533_2024/jonathan_ido_or/concept_decomposition/run_main"
-run_name: "concep_decomposition_bear_seed1006_cosine_loss"
+run_name: "textual_inversion_cat_with_norm_loss_seed_1001"
