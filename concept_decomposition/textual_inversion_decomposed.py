@@ -370,8 +370,10 @@ def parse_args():
     parser.add_argument("--path_to_clip_selected", type=str, default=None)
     
     parser.add_argument("--norm_loss", action="store_true", help="Whether to use norm loss")
+    
     parser.add_argument("--cosine_loss", action="store_true", help="Whether to use cosine loss")
     parser.add_argument("--norm_loss_beta", type=float, default=0.005, help="Beta for norm loss")
+    parser.add_argument("--norm_loss_desired_norm", type=float, default=1, help="The desired norm for the norm loss")
     parser.add_argument("--cosine_loss_beta", type=float, default=1.0, help="Beta for norm loss")
     args = parser.parse_args()
     print("args")
@@ -616,17 +618,19 @@ def main():
     placeholder_token_ids = tokenizer.convert_tokens_to_ids(args.placeholder_token.split(" "))
     print("placeholder_token_ids", placeholder_token_ids)
     
-    # Assuming args.initializer_token is a string like "object style"
+    
+    # Assuming args.initializer_toke    n is a string like "object style"
     initializer_tokens = args.initializer_token.split(" ")
-    assert len(initializer_tokens) == 2, "Expected two initializer tokens (e.g., 'object style')"
+    if len(initializer_tokens) == 2:
+        # assert len(initializer_tokens) == 2, "Expected two initializer tokens (e.g., 'object style')"
 
-    # Token IDs for "object" and "style"
-    object_token_id = tokenizer.encode(initializer_tokens[0], add_special_tokens=False)[0]
-    style_token_id = tokenizer.encode(initializer_tokens[1], add_special_tokens=False)[0]
+        # Token IDs for "object" and "style"
+        object_token_id = tokenizer.encode(initializer_tokens[0], add_special_tokens=False)[0]
+        style_token_id = tokenizer.encode(initializer_tokens[1], add_special_tokens=False)[0]
 
-    # Extract embeddings for the "object" and "style" tokens
-    object_embedding = text_encoder.get_input_embeddings().weight[object_token_id].detach().clone()
-    style_embedding = text_encoder.get_input_embeddings().weight[style_token_id].detach().clone()
+        # Extract embeddings for the "object" and "style" tokens
+        object_embedding = text_encoder.get_input_embeddings().weight[object_token_id].detach().clone().to(accelerator.device)
+        style_embedding = text_encoder.get_input_embeddings().weight[style_token_id].detach().clone().to(accelerator.device)
 
     # Resize the token embeddings as we are adding new special tokens to the tokenizer
     text_encoder.resize_token_embeddings(len(tokenizer))
@@ -664,6 +668,19 @@ def main():
     text_encoder.text_model.final_layer_norm.requires_grad_(False)
     text_encoder.text_model.embeddings.position_embedding.requires_grad_(False)
 
+    dynamic_norm_beta = args.norm_loss_beta
+    dynamic_cosine_beta = args.cosine_loss_beta
+
+    # Logging structure to store loss values
+    loss_logs = {
+        "mse_loss": [],
+        "cosine_reg_loss": [],
+        "norm_reg_loss": [],
+        "grad_norm": [],  # New key for gradient norms
+        "dynamic_norm_beta": [],
+        "dynamic_cosine_beta": []
+    }
+    
     if args.gradient_checkpointing:
         # Keep unet in train mode if we are using gradient checkpointing to save memory.
         # The dropout cannot be != 0 so it doesn't matter if we are in eval or train mode.
@@ -844,9 +861,12 @@ def main():
 
                 loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
                 
-                total_loss = loss
+                mse_loss_value = loss.item()
                 
-                if args.cosine_loss:
+                total_loss = loss
+                cosine_reg_loss_value = 0
+                reg_loss_value = 0
+                if args.cosine_loss and len(placeholder_token_ids) == 2:
                     # Inside the training loop:
                     # Compute the cosine similarity between embeddings and targets
                     learned_embedding_1 = accelerator.unwrap_model(text_encoder).get_input_embeddings().weight[placeholder_token_ids[0]]
@@ -858,32 +878,66 @@ def main():
 
                     # Regularization term for embeddings similarity
                     cosine_reg_loss = (cosine_loss_1 + cosine_loss_2).mean()
+                    cosine_reg_loss_value = cosine_reg_loss.item() * args.cosine_loss_beta
                     total_loss = total_loss + cosine_reg_loss * args.cosine_loss_beta
 
 
 
                 if args.norm_loss:
+                    desired_norm = args.norm_loss_desired_norm  # Desired norm for the embeddings
                     # Calculate the regularization loss
                     norm_list = []
                     reg_loss = 0.0  # Initialize the regularization loss
-                    for placeholder_token_id_ in placeholder_token_ids:
+                    placeholder_token_with_constraint = placeholder_token_ids[:2]
+                    for placeholder_token_id_ in placeholder_token_with_constraint:
                         cur_norm = torch.norm(
                             accelerator.unwrap_model(text_encoder).get_input_embeddings().weight[placeholder_token_id_].unsqueeze(0),
                             p=2
                         )
                         norm_list.append(cur_norm)
-                        if cur_norm > 0.8:
-                            reg_loss += 0.1 * 0.8 + torch.abs(cur_norm - 0.8)  # Stronger penalty for larger norms
+                        if cur_norm > desired_norm:
+                            reg_loss += 0.1 * desired_norm + torch.abs(cur_norm - desired_norm)  # Stronger penalty for larger norms
                         else:
                             reg_loss += 0.1 * torch.abs(cur_norm)  # Smaller penalty for smaller norms
 
                     # Normalize and combine with the primary loss
-                    reg_loss = reg_loss / len(placeholder_token_ids)  # Normalize the regularization loss
+                    reg_loss = reg_loss / len(placeholder_token_with_constraint)  # Normalize the regularization loss
                     # beta = 0.005  # Weight for the regularization loss
+                    
                     beta = args.norm_loss_beta  # Weight for the regularization loss
+                    reg_loss_value = reg_loss.item() * beta
                     total_loss = total_loss + beta * reg_loss  # Combine losses
                 
+                # Log current loss values
+                loss_logs["mse_loss"].append(mse_loss_value)
+                loss_logs["cosine_reg_loss"].append(cosine_reg_loss_value)
+                loss_logs["norm_reg_loss"].append(reg_loss_value)
+                loss_logs["dynamic_norm_beta"].append(dynamic_norm_beta)
+                loss_logs["dynamic_cosine_beta"].append(dynamic_cosine_beta)            
+                
+                logger.info(
+                    f"Step {global_step} | "
+                    f"MSE Loss: {mse_loss_value:.4f} | "
+                    f"Cosine Regularization Loss: {cosine_reg_loss_value:.4f} | "
+                    f"Norm Regularization Loss: {reg_loss_value:.4f} | "
+                    f"Total Loss: {total_loss.item():.4f}"
+                )
                 accelerator.backward(total_loss)
+                
+                # Access the token embeddings
+                token_embeddings = accelerator.unwrap_model(text_encoder).get_input_embeddings().weight
+                # Check if gradients are available
+                grad_norm_sum = 0
+                if token_embeddings.grad is not None:
+                    for idx, placeholder_token_id in enumerate(placeholder_token_ids):
+                        grad = token_embeddings.grad[placeholder_token_id]
+                        grad_norm = grad.norm().item()
+                        grad_norm_sum += grad_norm
+                        # Log gradient norm
+                    loss_logs[f"grad_norm"].append(grad_norm_sum)
+
+                    # Log using logger
+                    logger.info(f"Step {global_step} | Gradient Norm: {grad_norm_sum:.4f}")
 
                 optimizer.step()
                 lr_scheduler.step()
@@ -949,6 +1003,39 @@ def main():
 
             if global_step >= args.max_train_steps:
                 break
+    
+    # Plot losses at the end of training
+    plt.figure(figsize=(12, 6))
+    plt.plot(loss_logs["mse_loss"], label="MSE Loss", alpha=0.8)
+    plt.plot(loss_logs["cosine_reg_loss"], label="Cosine Regularization Loss", alpha=0.8)
+    plt.plot(loss_logs["norm_reg_loss"], label="Norm Regularization Loss", alpha=0.8)
+    plt.xlabel("Steps")
+    plt.ylabel("Loss")
+    plt.title("Loss Dynamics During Training")
+    plt.legend()
+    plt.grid(True)
+
+    # Save the plot to the output directory
+    loss_plot_path = os.path.join(args.output_dir, "loss_plot.jpg")
+    plt.savefig(loss_plot_path, bbox_inches="tight")
+    plt.close()
+    logger.info(f"Loss plot saved to {loss_plot_path}")
+    
+    
+        # Plot Gradient Norm
+    plt.figure(figsize=(12, 6))
+    plt.plot(loss_logs["grad_norm"], label="Gradient Norm", color='orange', alpha=0.8)
+    plt.xlabel("Steps")
+    plt.ylabel("Gradient Norm")
+    plt.title("Gradient Norm During Training")
+    plt.legend()
+    plt.grid(True)
+
+    # Save the gradient norm plot
+    grad_norm_plot_path = os.path.join(args.output_dir, "grad_norm_plot.jpg")
+    plt.savefig(grad_norm_plot_path, bbox_inches="tight")
+    plt.close()
+    logger.info(f"Gradient Norm plot saved to {grad_norm_plot_path}")
     if args.report_to == "wandb":
         wandb.finish
     # Create the pipeline using the trained modules and save it.

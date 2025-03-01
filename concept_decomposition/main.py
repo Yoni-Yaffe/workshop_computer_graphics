@@ -48,6 +48,7 @@ def run_textual_inversion(yaml_path, logdir):
     placeholder_token = config.get("placeholder_token", "<*> <&>")
     validation_prompt = config.get("validation_prompt", "<*>,<&>,<*> <&>")
     norm_loss = config.get("norm_loss", False)
+    cosine_loss = config.get("cosine_loss", False)
     norm_loss_beta = config.get("norm_loss_beta", 0.005)
     seed = config.get("seed", 123)
     initializer_token = config.get("initializer_token", "object object")
@@ -65,9 +66,14 @@ def run_textual_inversion(yaml_path, logdir):
         "--validation_steps", str(validation_steps),
         "--norm_loss_beta", str(norm_loss_beta),
         "--initializer_token", str(initializer_token),
+        "--cosine_loss_beta", str(config.get("cosine_loss_beta", 0.01)),
+        "--norm_loss_desired_norm", str(config.get("norm_loss_desired_norm", 1.0)),
     ]
     if norm_loss:
         sys.argv.append("--norm_loss")
+    if cosine_loss:
+        sys.argv.append("--cosine_loss")
+        
     
 
     print(f"Running with arguments: {' '.join(sys.argv)}")
